@@ -94,7 +94,7 @@ app.post("/api/coach", async (req, res) => {
   const body = {
     systemInstruction: system ? { parts: [{ text: system }] } : undefined,
     contents: [{ role: "user", parts: [{ text: message }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 800 },
+    generationConfig: { temperature: 0.4, maxOutputTokens: 1000 },
   };
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
