@@ -5,15 +5,23 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const PORT = process.env.PORT || 8788;
-// Reusing the existing GEMINI_API_KEY env var (now holds a DeepSeek key).
-// Falls back to DEEPSEEK_API_KEY if you ever rename it on Render.
-const KEY = process.env.GEMINI_API_KEY || process.env.DEEPSEEK_API_KEY;
-// DeepSeek model. Overridable from Render (set DEEPSEEK_MODEL) so you can
-// switch to "deepseek-chat" without editing code if "deepseek-v4-flash"
-// is rejected as an unknown model on your account.
-const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
-// DeepSeek's OpenAI-compatible chat-completions endpoint.
-const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
+
+/* ============================================================================
+ * PROVIDER CONFIG (generic variable names, currently set up for Gemini)
+ * ----------------------------------------------------------------------------
+ *   API_KEY   - your provider's API key
+ *   API_URL   - the provider's endpoint base (without the key)
+ *   MODEL     - the model name to call
+ *
+ * NOTE: this build targets GOOGLE GEMINI specifically. Gemini is NOT
+ * OpenAI-compatible — it uses systemInstruction/contents in the request and
+ * candidates[].content.parts in the response, plus SSE streaming. Switching to
+ * an OpenAI-style provider (DeepSeek, OpenAI, etc.) means changing the request
+ * body and response parsing below, not just these values.
+ * ========================================================================== */
+const KEY     = process.env.API_KEY;
+const API_URL = process.env.API_URL || "https://generativelanguage.googleapis.com/v1beta/models";
+const MODEL   = process.env.MODEL   || "gemini-2.5-flash";
 
 const app = express();
 app.use(cors());
@@ -24,17 +32,15 @@ app.use(express.static("public"));
 
 if (!KEY) {
   console.warn("\n[Coach Roostoo] No API key set yet.");
-  console.warn("Set GEMINI_API_KEY (holding your DeepSeek key) and restart.\n");
+  console.warn("Set API_KEY in your environment and restart.\n");
 }
 
 /* ============================================================================
- * LAYER 3 — OUTPUT GUARDRAIL  (unchanged from the Gemini version)
+ * LAYER 3 — OUTPUT GUARDRAIL
  * ----------------------------------------------------------------------------
- * The model is instructed (Layer 2, in the system prompt) to educate, not
- * prescribe. This layer is the SAFETY NET for when the model slips anyway.
- * It inspects the COMPLETE model response and, if it crossed into directive
- * real-world advice, replaces it with a safe redirect. Model-agnostic — it
- * screens text, so it works identically with DeepSeek.
+ * Safety net for when the model slips despite the system prompt. It inspects
+ * the COMPLETE model response and, if it crossed into directive real-world
+ * advice, replaces it with a safe redirect. Provider-agnostic — screens text.
  * ========================================================================== */
 
 const REAL_ASSET = /\b(bitcoin|btc|ethereum|eth|crypto|stock|stocks|shares?|tesla|tsla|apple|aapl|s&p|sp500|nasdaq|forex|gold|real money|your portfolio|your money|your account)\b/i;
@@ -64,7 +70,7 @@ const SAFE_REDIRECT =
 /**
  * POST /api/coach
  * body: { system: string, message: string }
- * Calls DeepSeek, screens the reply (Layer 3), then sends plain text.
+ * Calls Gemini, buffers + screens the reply (Layer 3), then sends plain text.
  * The API key never leaves this server.
  */
 app.post("/api/coach", async (req, res) => {
@@ -72,43 +78,50 @@ app.post("/api/coach", async (req, res) => {
   if (!message) return res.status(400).json({ error: "Missing message" });
   if (!KEY) return res.status(500).json({ error: "Server has no API key configured." });
 
-  // DeepSeek uses the OpenAI-style messages array: a system message + the user
-  // message, instead of Gemini's systemInstruction/contents shape.
-  const messages = [];
-  if (system) messages.push({ role: "system", content: system });
-  messages.push({ role: "user", content: message });
+  // Gemini's streaming endpoint (SSE). URL = base + /MODEL:streamGenerateContent
+  const url = `${API_URL}/${MODEL}:streamGenerateContent?alt=sse&key=${KEY}`;
 
   const body = {
-    model: MODEL,
-    messages,
-    temperature: 0.4,
-    max_tokens: 1000,
-    stream: false, // we buffer anyway for the guardrail; no need to stream
+    systemInstruction: system ? { parts: [{ text: system }] } : undefined,
+    contents: [{ role: "user", parts: [{ text: message }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 1000 },
   };
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
 
   try {
-    const upstream = await fetch(DEEPSEEK_URL, {
+    const upstream = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${KEY}`, // DeepSeek/OpenAI-style auth header
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
 
-    if (!upstream.ok) {
+    if (!upstream.ok || !upstream.body) {
       const errText = await upstream.text().catch(() => "");
-      console.error("[coach] DeepSeek error:", upstream.status, errText.slice(0, 300));
-      res.status(502).end("[error contacting DeepSeek]");
+      console.error("[coach] Gemini error:", upstream.status, errText.slice(0, 300));
+      res.status(502).end("[error contacting model provider]");
       return;
     }
 
-    // Non-streaming JSON response: the answer is at choices[0].message.content.
-    const data = await upstream.json();
-    const full = data?.choices?.[0]?.message?.content || "";
+    // Read the ENTIRE SSE body first, THEN parse (avoids dropping the final
+    // chunk — the end of the answer — that a streaming parser can strand).
+    const wholeBody = await upstream.text();
+
+    let full = "";
+    for (const rawLine of wholeBody.split("\n")) {
+      const t = rawLine.trim();
+      if (!t.startsWith("data:")) continue;
+      const json = t.slice(5).trim();
+      if (!json || json === "[DONE]") continue;
+      try {
+        const obj = JSON.parse(json);
+        const text = obj?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
+        if (text) full += text;
+      } catch {
+        /* ignore non-JSON keep-alive lines */
+      }
+    }
 
     // ---- LAYER 3: screen the complete answer ----
     let release = full.trim();
