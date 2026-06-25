@@ -4,6 +4,10 @@ A config-aware training coach for the Agent Factory. It explains indicators, rew
 
 Answers come from Google Gemini. A small Python server holds the API key so the browser never sees it; if the server is unreachable, the UI falls back to built-in sample answers so it never looks broken.
 
+HERE is the link to the demo: https://coach-roostoo.onrender.com/
+Model Used: Gemini 2.5 flash
+
+Tutorial to run locally yourself:
 ## Running it locally
 
 You need Python 3.10+ installed.
