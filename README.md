@@ -1,134 +1,60 @@
-# Coach Roostoo — live PoC (Google Gemini, free)
+# Coach Roostoo
 
-A config-aware Training Coach for the Agent Factory, with the training sandbox
-below it. Answers are generated **live by Google Gemini's free tier**. A small
-server keeps the API key safe (the browser never sees it).
+A config-aware training coach for the Agent Factory. It explains indicators, reward functions, and risk settings in plain language, grounded in whatever the user has selected — and it answers educationally rather than giving real-money advice.
 
-There are two things you can do:
+Answers come from Google Gemini. A small Python server holds the API key so the browser never sees it; if the server is unreachable, the UI falls back to built-in sample answers so it never looks broken.
 
-- **Part A — run it on your own computer** to test it (5 minutes).
-- **Part B — put it online for free** so coworkers just open a link (10 minutes).
+## Running it locally
 
-Do Part A first to make sure it works, then Part B to share it.
+You need Python 3.10+ installed.
 
----
-
-## First: get your free Gemini key (1 minute, no credit card)
-
-1. Go to **https://aistudio.google.com/apikey**
-2. Sign in with a Google account.
-3. Click **Create API key**. Copy the long string it gives you. That's your key.
-
-Keep it somewhere safe. Treat it like a password — don't paste it into the web
-page or share it publicly.
-
----
-
-## Part A — Run it on your computer (to test)
-
-You need **Node.js** installed (https://nodejs.org — get the "LTS" version).
-
-1. Open this folder in a terminal / command prompt.
-2. Install the bits it needs:
+1. Install dependencies:
    ```
-   npm install
+   pip install -r requirements.txt
    ```
-3. Make your key file:
+2. Set your Gemini key (get one free at https://aistudio.google.com/apikey):
    ```
-   cp .env.example .env
+   export API_KEY=your_key_here
    ```
-   (On Windows, just copy the file and rename the copy to `.env`.)
-   Open `.env` and paste your key after `GEMINI_API_KEY=`.
-4. Start it:
+   On Windows: `set API_KEY=your_key_here`
+3. Start the server:
    ```
-   npm start
+   uvicorn server:app --host 0.0.0.0 --port 8788
    ```
-5. Open **http://localhost:8788** in your browser. Ask a question — the answer is
-   now generated live by Gemini, grounded in the indicators you've selected.
+4. Open http://localhost:8788
 
-> If you see "(Showing a built-in answer…)", the key isn't set correctly. Check
-> `.env` has your real key and restart with `npm start`.
+If the coach shows "(built-in answer)", the key isn't being read — check `API_KEY` is set and restart. You can confirm at http://localhost:8788/api/health, which reports whether the key is loaded.
 
----
+## Deploying on Render
 
-## Part B — Put it online for free (to share with coworkers)
+1. Push this folder to GitHub. Don't commit any key — it goes in Render's settings, not the repo.
+2. On Render: New → Web Service, connect the repo. It reads `render.yaml`, which sets:
+   - Build: `pip install -r requirements.txt`
+   - Start: `uvicorn server:app --host 0.0.0.0 --port $PORT`
+3. Under Environment, add `API_KEY` with your Gemini key.
+4. Deploy. Render gives you a link to share — coworkers just open it, no install.
 
-We'll use **Render** — a free host. Your coworkers will just open a link; they
-install nothing.
+Render's free tier sleeps when idle, so the first request after a quiet spell takes ~30 seconds to wake. Fine for a demo; a paid tier removes it.
 
-### One-time setup
+## How it maps to the real app
 
-1. Put this folder on **GitHub** (create a free account at github.com if needed,
-   make a new repository, and upload these files).
-   - *Easiest way if you're new:* on your repo page, click **Add file → Upload
-     files**, drag everything in this folder in, and commit.
-   - **Do NOT upload your `.env` file.** It's already excluded by `.gitignore`.
-     Your key goes in Render's settings instead (next step).
+- `public/index.html` — the coach UI plus the training sandbox. In production this becomes a component in the Agent Factory, reading config from the live app state instead of the demo's controls.
+- `systemPrompt()` (in `index.html`) — the grounding and safety layer: injects the user's selected indicators/reward/risk and enforces educate-don't-advise behavior. This is the reusable core.
+- `server.py` — the backend: holds the key, calls the model, and screens the output (the guardrail). In production this becomes a route on Roostoo's own backend; the model is swappable.
 
-2. Go to **https://render.com**, sign up (free), and click
-   **New → Web Service**. Connect your GitHub and pick this repository.
+## A few things worth knowing
 
-3. Render reads `render.yaml` and fills most settings in for you. Confirm:
-   - Build command: `npm install`
-   - Start command: `npm start`
-   - Plan: **Free**
-
-4. Before deploying, add your key as a secret:
-   - In the service's **Environment** section, add a variable:
-     - **Key:** `GEMINI_API_KEY`
-     - **Value:** *(paste your Gemini key)*
-
-5. Click **Create Web Service**. Wait a couple of minutes while it builds.
-
-6. Render gives you a link like **`https://coach-roostoo.onrender.com`**.
-   That's the link you share. Open it — it's the full coach, live.
-
-### That's it
-
-Send the link to your team. Anyone who opens it can use the live coach. No
-install, no key on their end.
-
-> **Free-tier note:** Render's free service "sleeps" after a while idle, so the
-> first visit after a quiet period may take ~30 seconds to wake up. After that
-> it's fast. This is fine for a demo.
-
----
-
-## Things to know (please read before sharing)
-
-- **Free Gemini limits:** about 1,500 questions per day. A demo won't hit that,
-  but if the whole team hammers it, it can pause until the next day.
-- **Privacy:** free-tier prompts may be used by Google to improve their models.
-  Keep it to made-up trading-sim questions — **do not** put real customer or
-  company data through it.
-- **The key stays secret:** it lives only on the server (your `.env` locally, or
-  Render's Environment settings online). It's never in the web page, so opening
-  the link can't leak it.
-
----
-
-## How this maps to the real Roostoo app
-
-- `public/index.html` — the coach UI. In the real app this becomes a component in
-  the Agent Factory; the config it reads would come from the existing app state.
-- `systemPrompt()` inside it — the grounding layer (injects the user's selected
-  indicators/reward/risk). This is the reusable core of the feature.
-- `server.js` — the backend. In production this is a route on Roostoo's own
-  backend; swap Gemini for whatever model you choose. Same shape.
-- The training section below is the existing simulator UI, included so the coach
-  sits in its real context (learn → configure → train).
-
----
+- The key lives only on the server (your environment locally, or Render's settings online), never in the page.
+- Gemini's free tier has a daily request cap and may use prompts to improve its models — keep it to simulator questions, no real customer or company data.
+- The coach is educational by design. It won't give real-world buy/sell advice; for platform facts (fees, rules, scoring) the intended approach is to point users to the official Roostoo docs rather than answer from memory.
 
 ## Files
 
 ```
 .
-├── server.js          # backend: holds the key, calls Gemini, streams answers
-├── package.json
+├── server.py          # backend: holds the key, calls the model, screens output
+├── requirements.txt   # Python dependencies
 ├── render.yaml        # tells Render how to run it
-├── .env.example       # copy to .env, paste your key
-├── .gitignore         # keeps your key + node_modules out of GitHub
 └── public/
-    └── index.html     # the coach UI + config + training section
+    └── index.html     # coach UI + config + training sandbox
 ```
