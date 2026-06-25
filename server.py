@@ -113,7 +113,7 @@ async def coach(request: Request):
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": message}]}],
-        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1000},
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 10000},
     }
     if system:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
