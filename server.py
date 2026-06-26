@@ -37,9 +37,9 @@ load_dotenv()
 PORT = int(os.environ.get("PORT", "8788"))
 KEY = os.environ.get("API_KEY")
 API_URL = os.environ.get(
-    "API_URL", "https://generativelanguage.googleapis.com/v1beta/models"
+    "API_URL", "https://api.groq.com/openai/v1"
 )
-MODEL = os.environ.get("MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("MODEL", "openai/gpt-oss-20b")
 
 if not KEY:
     print("\n[Coach Roostoo] No API key set yet.")
