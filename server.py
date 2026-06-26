@@ -1,21 +1,19 @@
 """
-Coach Roostoo — FastAPI server (Python port of the Node/Express version).
+Coach Roostoo — FastAPI server (Groq / OpenAI-compatible build).
 
-Behaviour is identical to the Node version:
   - POST /api/coach   : build prompt -> call the model -> screen output -> return text
   - GET  /api/health  : { ok, model, keySet }
   - serves the UI from ./public (index.html) so it's one link
 
-PROVIDER CONFIG (generic env names, currently set up for Gemini):
+PROVIDER CONFIG (generic env names, currently set up for Groq):
   API_KEY  - your provider's API key
-  API_URL  - the provider's endpoint base (without the key)
+  API_URL  - the provider's chat-completions endpoint
   MODEL    - the model name to call
 
-NOTE: this build targets GOOGLE GEMINI. Gemini is NOT OpenAI-compatible — it
-uses systemInstruction/contents in the request and candidates[].content.parts
-in the response (SSE streaming). Switching to an OpenAI-style provider
-(DeepSeek, OpenAI, etc.) means changing the request body and response parsing,
-not just these values.
+NOTE: this build targets GROQ, which is OpenAI-compatible — it uses a
+"messages" array in the request and choices[0].message.content in the response,
+with a Bearer auth header. This is the SAME shape as DeepSeek/OpenAI, and is
+DIFFERENT from Gemini's native format.
 
 Run locally:
   pip install fastapi uvicorn httpx python-dotenv
@@ -24,7 +22,6 @@ Run locally:
 
 import os
 import re
-import json
 
 import httpx
 from dotenv import load_dotenv
@@ -36,9 +33,8 @@ load_dotenv()
 
 PORT = int(os.environ.get("PORT", "8788"))
 KEY = os.environ.get("API_KEY")
-API_URL = os.environ.get(
-    "API_URL", "https://api.groq.com/openai/v1"
-)
+# Groq's OpenAI-compatible chat-completions endpoint.
+API_URL = os.environ.get("API_URL", "https://api.groq.com/openai/v1/chat/completions")
 MODEL = os.environ.get("MODEL", "openai/gpt-oss-20b")
 
 if not KEY:
@@ -48,11 +44,7 @@ if not KEY:
 app = FastAPI()
 
 # ============================================================================
-# LAYER 3 — OUTPUT GUARDRAIL
-# ----------------------------------------------------------------------------
-# Safety net for when the model slips despite the system prompt. Inspects the
-# COMPLETE model response and, if it crossed into directive real-world advice,
-# replaces it with a safe redirect. Provider-agnostic — it screens text.
+# LAYER 3 — OUTPUT GUARDRAIL (provider-agnostic — screens text)
 # ============================================================================
 
 REAL_ASSET = re.compile(
@@ -74,7 +66,6 @@ SIM_SCOPED = re.compile(
 def crosses_line(text: str) -> bool:
     if not text:
         return False
-    # Split into sentences so one safe sentence can't excuse a bad one.
     sentences = re.split(r"(?<=[.!?\n])\s+", text)
     for s in sentences:
         if not DIRECTIVE.search(s):
@@ -108,54 +99,44 @@ async def coach(request: Request):
             {"error": "Server has no API key configured."}, status_code=500
         )
 
-    # Gemini streaming endpoint (SSE): base + /MODEL:streamGenerateContent
-    url = f"{API_URL}/{MODEL}:streamGenerateContent?alt=sse&key={KEY}"
+    # OpenAI-compatible request: a "messages" array (system + user).
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": message})
 
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": message}]}],
-        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 10000},
+        "model": MODEL,
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": 2000,
+        "stream": False,  # we buffer anyway for the guardrail
     }
-    if system:
-        payload["systemInstruction"] = {"parts": [{"text": system}]}
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             upstream = await client.post(
-                url, headers={"Content-Type": "application/json"}, json=payload
+                API_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {KEY}",
+                },
+                json=payload,
             )
 
         if upstream.status_code != 200:
-            print(
-                "[coach] Gemini error:",
-                upstream.status_code,
-                upstream.text[:300],
-            )
+            print("[coach] Groq error:", upstream.status_code, upstream.text[:300])
             return PlainTextResponse(
                 "[error contacting model provider]", status_code=502
             )
 
-        # Read the ENTIRE SSE body, THEN parse (avoids dropping the final chunk).
+        # OpenAI-style response: answer is at choices[0].message.content.
+        data = upstream.json()
         full = ""
-        for raw_line in upstream.text.split("\n"):
-            t = raw_line.strip()
-            if not t.startswith("data:"):
-                continue
-            data_str = t[5:].strip()
-            if not data_str or data_str == "[DONE]":
-                continue
-            try:
-                obj = json.loads(data_str)
-                parts = (
-                    obj.get("candidates", [{}])[0]
-                    .get("content", {})
-                    .get("parts", [])
-                )
-                text = "".join(p.get("text", "") for p in parts)
-                if text:
-                    full += text
-            except (json.JSONDecodeError, IndexError, KeyError):
-                # ignore non-JSON keep-alive lines
-                pass
+        try:
+            full = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError):
+            full = ""
 
         # ---- LAYER 3: screen the complete answer ----
         release = full.strip()
