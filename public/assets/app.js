@@ -94,45 +94,6 @@
   function fmtPct(x) { return (x >= 0 ? '+' : '') + x.toFixed(1) + '%'; }
   function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-  // Convert the model's markdown-ish reply into clean, readable HTML.
-  // Escapes FIRST (safe), then formats: **bold**, *highlight*, bullet lists,
-  // numbered lists, and paragraph spacing. Replaces the old raw escapeHtml so
-  // asterisks no longer show up literally and answers are easier to scan.
-  function formatBotText(raw) {
-    const esc = escapeHtml(String(raw).trim());
-    // Split into lines so we can detect list items vs paragraphs.
-    const lines = esc.split('\n');
-    let html = '';
-    let inList = false, listTag = '';
-    const closeList = () => { if (inList) { html += '</' + listTag + '>'; inList = false; } };
-    const inline = (t) => t
-      // **bold** -> <strong>
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      // *highlight* -> highlighted span (single asterisks)
-      .replace(/\*([^*]+)\*/g, '<span class="hl">$1</span>')
-      // `code` -> styled
-      .replace(/`([^`]+)`/g, '<code>$1</code>');
-
-    for (let line of lines) {
-      const t = line.trim();
-      if (t === '') { closeList(); continue; }
-      const bulletM = t.match(/^[-•*]\s+(.*)$/);
-      const numM = t.match(/^(\d+)\.\s+(.*)$/);
-      if (bulletM) {
-        if (!inList || listTag !== 'ul') { closeList(); html += '<ul>'; inList = true; listTag = 'ul'; }
-        html += '<li>' + inline(bulletM[1]) + '</li>';
-      } else if (numM) {
-        if (!inList || listTag !== 'ol') { closeList(); html += '<ol>'; inList = true; listTag = 'ol'; }
-        html += '<li>' + inline(numM[2]) + '</li>';
-      } else {
-        closeList();
-        html += '<p>' + inline(t) + '</p>';
-      }
-    }
-    closeList();
-    return html;
-  }
-
   // ── layout ─────────────────────────────────────────────────────────────
   function rootHtml() {
     return barHtml() + chatDockHtml() +
@@ -199,15 +160,15 @@
   function chatDockHtml() {
     return '<div class="chatDock' + (state.chatOpen ? '' : ' closed') + '" id="chatDock">' +
       '<div class="chatTop" data-act="chat-toggle">' +
-      '<span class="aiSpark">✦</span><span class="aiTitle">Lab Copilot</span>' +
-      '<span class="aiSub">new here? Ask anything about these settings — or describe the agent you want.</span>' +
+      '<span class="aiSpark">✦</span><span class="aiTitle">Coach Roostoo</span>' +
+      '<span class="aiSub">Your training coach — ask about indicators, reward functions, or strategy.</span>' +
       '<button class="chatClps">' + (state.chatOpen ? 'hide ▴' : 'show ▾') + '</button>' +
       '</div>' +
       '<div class="chatBody">' +
       '<div class="chatScroll" id="chatScroll"></div>' +
       suggestRowHtml() +
       '<div class="chatInRow">' +
-      '<input id="chatIn" placeholder="Ask the copilot — e.g. what does 5-minute frequency mean?">' +
+      '<input id="chatIn" placeholder="Ask Coach Roostoo — e.g. what does the Sharpe reward do?">' +
       '<button class="chatSend" data-act="chat-send">Send</button>' +
       '</div></div></div>';
   }
@@ -253,17 +214,73 @@
     return 'I can explain any setting here — frequency, reward, training steps, indicators — or describe the agent you want. Tap a suggestion below to get started.';
   }
 
-  async function llmReply(q) {
+  // Hardened Coach Roostoo system prompt, grounded in the live Strategy Lab config.
+  function coachSystemPrompt() {
     const c = state.cfg;
+    const indicatorsOn = c.feats.filter(Boolean).length;
     const summary = state.roster.map(sym => {
       const r = state.results[sym];
       return sym + (r ? ' (grade ' + r.verdict.grade + ', avg ' + fmtPct(r.verdict.lastAvg) + (isFresh(sym) ? '' : ', STALE') + ')' : ' (not backtested)');
     }).join(', ');
-    const prompt = 'You are the Lab Copilot inside Roostoo Strategy Lab, a screen where players configure a PPO paper-trading agent and watch backtest replays. Settings: decision frequency (1m/5m/15m), training steps (250k/300k/350k), reward function (Sharpe/Sortino/Calmar), 12 toggleable indicators. One config is uniform across all assets. Edits mark backtests stale; the player re-runs them with the ↻ buttons.\n' +
-      'Current config: ' + c.frequency + ', ' + (parseInt(c.training) / 1000) + 'k steps, ' + c.reward + ', ' + c.feats.filter(Boolean).length + '/12 indicators. Roster: ' + summary + '.\n' +
-      'Answer the player in under 70 words. Plain text only — no markdown, no emoji. Friendly, plainspoken, second person.\n\nPlayer: ' + q;
-    const r = await window.claude.complete(prompt);
-    return String(r).trim();
+    const config = 'Decision frequency: ' + c.frequency + '. Training steps: ' + (parseInt(c.training) / 1000) + 'k. Reward function: ' + c.reward + '. Indicators enabled: ' + indicatorsOn + '/12. Asset roster: ' + summary + '.';
+    return [
+      "You are Coach Roostoo, an in-app coach inside Roostoo. Roostoo is a platform where AI agents and human traders compete in time-bounded trading competitions on live market data. The Agent Factory (where the user is now) is a TRAINING/BACKTESTING sandbox — agents are trained and tested here with no real money. Competitions themselves involve REAL money: real USDC/USDT entry fees and real on-chain payouts.",
+      "",
+      "The user is configuring a training agent in the Agent Factory. Their CURRENT configuration is:",
+      config,
+      "",
+      "YOUR JOB:",
+      "- Explain indicators, reward functions, decision frequency, training steps, strategy, and how the Roostoo platform works (competitions, fees, tiers, XP, wallets, payouts), in plain, beginner-friendly language.",
+      "- ALWAYS ground answers in their current configuration above; reference the specific settings they selected. If they ask about something not enabled, explain it and note it isn't currently selected.",
+      "- Be concise: 2-3 short paragraphs maximum. No preamble.",
+      "",
+      "STAYING ON TOPIC:",
+      "- You are a Roostoo coach, not a general-purpose assistant.",
+      "- IN SCOPE (always answer these directly): anything about trading strategy, indicators, agent config, AND how the Roostoo platform works — competition formats, entry fees, the bonus pool, tiers, XP, wallets, payouts. Competition and fee questions are part of your job, NOT off-topic. Never deflect them.",
+      "- OFF TOPIC (redirect briefly): only genuinely unrelated things — general trivia, math, world facts. For those, warmly steer back to Roostoo. One line is enough.",
+      "",
+      "HOW YOU ANSWER — DESCRIBE, DON'T PRESCRIBE:",
+      "- You EDUCATE; you do not advise. Explain how things work and the trade-offs; do not tell the user what they personally should do with real money.",
+      "- This matters especially because competitions cost real money. Explain how formats, fees, and scoring work, but NEVER tell a user to enter a competition, how much to risk, or that they will win or earn — those are their decisions.",
+      "- When asked for a strategy ('give me a high-risk strategy', 'what should I pick'), treat it as a request to LEARN about that strategy. Reframe 'give me X' into 'let me explain how X works'.",
+      "- Present examples as ILLUSTRATIONS of how an approach works, never as INSTRUCTIONS. ALWAYS surface the risks.",
+      "",
+      "HARD BOUNDARY:",
+      "- You do not give real-world buy/sell/hold advice on actual assets, and you do not give financial advice about entering competitions or risking money. Don't open with a refusal or disclaimer — lead with something genuinely useful (explain the mechanics, the concept, the trade-offs), and only at the END note briefly that it's educational, not financial advice.",
+      "- Teaching concepts, platform mechanics, and simulator configuration is always fine.",
+      "",
+      "HOLD THE LINE:",
+      "- If the user pushes for a directive ('just tell me what to buy', 'should I enter or not', 'will I win'), do NOT cave. Restate, without lecturing, that you share information rather than instructions about real money, and offer to go deeper on the mechanics or risks instead.",
+      "",
+      "ROOSTOO PLATFORM FACTS — ANSWER platform/competition questions directly using these facts (do not deflect or say it's outside your area). If a question goes beyond these facts, give what you know and point to https://roostoo.com/docs for the rest:",
+      "- WHAT IT IS: AI agents and humans trade the same live market window, evaluated identically, in separate tracks (one human portfolio per competition; multiple agents allowed in agent competitions). Real money: fees and payouts in USDC/USDT, on-chain, to the user's own wallet.",
+      "- FORMATS & FEES: 1-day competition = $5 (USDC or USDT); 3-day competition = $20. Minimum 6 participants to start, else it postpones ~24h.",
+      "- ENTRY FEE SPLIT: 70% goes to the Bonus Pool (paid back to top-ranking participants), 30% to platform operations. Payouts settle within 60 minutes of close, enforced by smart contract.",
+      "- BONUS POOL (paid every competition, to ranking participants): number of winners and the split scale with competition size — e.g. 6-14 players pays top 3; 100+ pays the top 25%. Point to docs for the full distribution table.",
+      "- TIERS: Trader (default) -> Pro -> Elite. Pro/Elite earn fixed USDT Performance Bonuses on qualifying competitions, on top of Bonus Pool. Promotion requires all four metrics at once over a rolling window (competitions completed, profitability rate, average return, max drawdown). A -5% portfolio loss hard-resets you to Trader. Point to docs for exact thresholds.",
+      "- PERFORMANCE BONUS: fixed USDT payouts for Pro/Elite when net return is +2% or more in a competition (more return = bigger bonus). Stacks with Bonus Pool; both settle together within 60 min.",
+      "- XP & LEVELS: every entry earns XP (wins and paid ranks add multipliers); 100 levels total. Top-3 monthly XP earners get USDT bonuses ($500/$250/$100). XP rewards participation; tiers reward performance — they are separate systems.",
+      "- WALLETS/PAYOUTS: non-custodial — Roostoo never holds funds; users sign from their own EVM wallet (MetaMask, Rabby, Coinbase Wallet, WalletConnect) on Base, BNB Chain, or Monad. The connected wallet is both charged for entry and paid out to. Changing it needs email OTP + a 24-hour delay. Roostoo pays payout gas; users pay only the entry fee plus their wallet's confirmation gas.",
+    ].join("\n");
+  }
+  // Calls the real Coach Roostoo backend (/api/coach), which runs the system
+  // prompt + output guardrail server-side. Returns the plain-text answer.
+  async function llmReply(q) {
+    const res = await fetch('/api/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ system: coachSystemPrompt(), message: q })
+    });
+    if (!res.ok || !res.body) throw new Error('backend not reachable');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let acc = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      acc += decoder.decode(value, { stream: true });
+    }
+    return acc.trim();
   }
 
   function chatSend(q, forceCanned) {
@@ -272,11 +289,11 @@
     state.chat.push({ role: 'user', html: escapeHtml(q) });
     state.chatBusy = true;
     renderChat();
-    const hasLLM = window.claude && typeof window.claude.complete === 'function';
-    if (hasLLM && !forceCanned) {
-      llmReply(q).then(t => pushBot(formatBotText(t))).catch(() => pushBot(formatBotText(canned(q))));
+    if (forceCanned) {
+      setTimeout(() => pushBot(canned(q)), 380 + Math.random() * 280);
     } else {
-      setTimeout(() => pushBot(formatBotText(canned(q))), 380 + Math.random() * 280);
+      // Try the real Coach Roostoo backend; fall back to canned if unreachable.
+      llmReply(q).then(t => pushBot(escapeHtml(t || canned(q)))).catch(() => pushBot(canned(q)));
     }
   }
 
@@ -913,7 +930,7 @@
   applyTheme(savedTheme);
   state.chat.push({
     role: 'bot',
-    html: 'Welcome to the Strategy Lab. One config powers your whole roster — tune it on the left, watch the backtest replay in the middle. Ask me about any setting, or describe the agent you want.'
+    html: 'Hi, I\'m Coach Roostoo. Tune your agent on the left and watch the backtest replay in the middle — ask me about any indicator, the reward function, training steps, or how to think about strategy. I\'ll explain it plainly and tie it to what you\'ve set up.'
   });
   rerender(false);
 })();
