@@ -94,7 +94,7 @@
   function fmtPct(x) { return (x >= 0 ? '+' : '') + x.toFixed(1) + '%'; }
   function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-   // Convert the model's markdown reply into clean HTML. Escapes FIRST (safe),
+  // Convert the model's markdown reply into clean HTML. Escapes FIRST (safe),
   // then formats **bold**, *highlight*, bullet/numbered lists, and paragraphs —
   // so asterisks no longer show up literally and answers are easy to scan.
   function formatBotText(raw) {
@@ -149,7 +149,7 @@
       '</div>';
   }
 
-  // ── copilot chat ───────────────────────────────────────────────────────
+  // ── Coach Roostoo chat ─────────────────────────────────────────────────
   const CHIPS = [
     'What does 5-minute frequency mean?',
     'Which reward function should I pick?',
@@ -264,7 +264,7 @@
       "YOUR JOB:",
       "- Explain indicators, reward functions, decision frequency, training steps, strategy, and how the Roostoo platform works (competitions, fees, tiers, XP, wallets, payouts), in plain, beginner-friendly language.",
       "- ALWAYS ground answers in their current configuration above; reference the specific settings they selected. If they ask about something not enabled, explain it and note it isn't currently selected.",
-      "- Be concise: 2-3 short paragraphs maximum. No preamble.",
+      "- Be concise: 2-3 short paragraphs maximum. Use **bold** for key terms and bullet points for lists where it aids readability. Use *single asterisks* to highlight the single most important figure or fact (e.g. a fee or a number).",
       "",
       "STAYING ON TOPIC:",
       "- You are a Roostoo coach, not a general-purpose assistant.",
@@ -322,10 +322,10 @@
     state.chatBusy = true;
     renderChat();
     if (forceCanned) {
-      setTimeout(() => pushBot(canned(q)), 380 + Math.random() * 280);
+      setTimeout(() => pushBot(formatBotText(canned(q))), 380 + Math.random() * 280);
     } else {
       // Try the real Coach Roostoo backend; fall back to canned if unreachable.
-      llmReply(q).then(t => pushBot(escapeHtml(t || canned(q)))).catch(() => pushBot(canned(q)));
+      llmReply(q).then(t => pushBot(formatBotText(t || canned(q)))).catch(() => pushBot(formatBotText(canned(q))));
     }
   }
 
