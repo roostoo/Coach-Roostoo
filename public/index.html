@@ -1,7 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0039)https://rl-agent-simulation.vercel.app/ -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Roostoo Labs — Strategy Lab</title>
 <link rel="icon" type="image/png" href="./assets/roostoo-icon.png">
@@ -11,85 +9,40 @@
 <link href="./assets/css2" rel="stylesheet">
 <style>
   :root {
-    /* ── Roostoo dark scaffold ── */
-    --bg: #0C1117;          /* darkColor — dark mode scaffold */
-    --bg2: #080C11;
-    --panel: #141B23;       /* card surface (lifted from #0C1117) */
-    --panel2: #1B232D;      /* nested control */
-    --panel3: #28323E;      /* tracks / inert fills */
-    --border: rgba(255,255,255,0.07);
-    --border2: rgba(255,255,255,0.13);
-    --text: #FFFFFF;
-    --muted: #BDBDBD;       /* grey[400] */
-    --dim: #6E7A8A;
-    /* ── brand ── */
-    --accent: #FEDB29;      /* brand yellow */
-    --accent-warm: #FFBF12; /* gradient stop */
-    --green: #00FF87;       /* dark-mode gain */
-    --red: #EF5144;
-    --orange: #FF873C;      /* action / links / selected / chart line */
-    /* ── type ── */
+    --bg: #0C1117; --bg2: #080C11; --panel: #141B23; --panel2: #1B232D; --panel3: #28323E;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+    --text: #FFFFFF; --muted: #BDBDBD; --dim: #6E7A8A;
+    --accent: #FEDB29; --accent-warm: #FFBF12; --green: #00FF87; --red: #EF5144; --orange: #FF873C;
     --display: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
-    /* ── radii ── */
-    --r-sm: 6px;            /* inputs */
-    --r-md: 8px;            /* cards / dialogs */
-    --r-pill: 24px;         /* buttons / chips */
-    /* ── elevation ── */
-    --elev-card: 0 0.4px 1px rgba(0,0,0,0.35);
-    --elev-sheet: 0 24px 60px rgba(0,0,0,0.55);
-    /* ── theme-variant tokens (overridden by body.light) ── */
-    --input-bg: rgba(255,255,255,0.06);
-    --hover: rgba(255,255,255,0.04);
-    --disabled-bg: rgba(255,255,255,0.12);
-    --disabled-fg: rgba(255,255,255,0.4);
-    --dot-idle: #333d49;
+    --r-sm: 6px; --r-md: 8px; --r-pill: 24px;
+    --elev-card: 0 0.4px 1px rgba(0,0,0,0.35); --elev-sheet: 0 24px 60px rgba(0,0,0,0.55);
+    --input-bg: rgba(255,255,255,0.06); --hover: rgba(255,255,255,0.04);
+    --disabled-bg: rgba(255,255,255,0.12); --disabled-fg: rgba(255,255,255,0.4); --dot-idle: #333d49;
   }
-  /* ── Light mode — Roostoo app palette (white surfaces, yellow/orange accents) ── */
   body.light {
-    --bg: #FFFFFF;
-    --bg2: #F4F6F8;
-    --panel: #FFFFFF;
-    --panel2: #F3F5F7;
-    --panel3: #E6E9EC;
-    --border: rgba(0,0,0,0.10);
-    --border2: rgba(0,0,0,0.18);
-    --text: #14181F;
-    --muted: #5B6470;
-    --dim: #8A929E;
-    --green: #16C784;
-    --red: #EA3943;
-    --input-bg: #EEF1F4;
-    --hover: rgba(0,0,0,0.035);
-    --disabled-bg: rgba(0,0,0,0.07);
-    --disabled-fg: rgba(0,0,0,0.32);
-    --dot-idle: #C7CDD4;
+    --bg: #FFFFFF; --bg2: #F4F6F8; --panel: #FFFFFF; --panel2: #F3F5F7; --panel3: #E6E9EC;
+    --border: rgba(0,0,0,0.10); --border2: rgba(0,0,0,0.18);
+    --text: #14181F; --muted: #5B6470; --dim: #8A929E; --green: #16C784; --red: #EA3943;
+    --input-bg: #EEF1F4; --hover: rgba(0,0,0,0.035); --disabled-bg: rgba(0,0,0,0.07);
+    --disabled-fg: rgba(0,0,0,0.32); --dot-idle: #C7CDD4;
   }
   body.light { background: var(--bg); }
-  /* yellow reads poorly on white — use orange for accent TEXT in light mode */
-  body.light .aiSpark,
-  body.light #tipPop b,
-  body.light .cfgUni b,
-  body.light .hs .v.gold,
-  body.light .loopCenter .ep,
-  body.light .loopCycleLbl b,
-  body.light .rsRow.cfgSum .ck,
-  body.light .rItem .rr:hover,
-  body.light .rkHead .v { color: var(--orange); }
+  body.light .aiSpark, body.light #tipPop b, body.light .cfgUni b, body.light .hs .v.gold,
+  body.light .loopCenter .ep, body.light .loopCycleLbl b, body.light .rsRow.cfgSum .ck,
+  body.light .rItem .rr:hover, body.light .rkHead .v { color: var(--orange); }
   body.light .rkHead .v.off { color: var(--dim); }
   body.light #ftCount { color: var(--orange) !important; }
   body.light .warmPillB { color: #9A5B00; background: rgba(254,219,41,0.22); border-color: rgba(224,161,0,0.55); }
   body.light .warmPillB .d { background: var(--orange); }
-  /* tints that hardcode neon green/red — soften for a white background */
   body.light .vCard { border-color: rgba(22,199,132,0.45); background: rgba(22,199,132,0.07); }
   body.light .vCard.bad { border-color: rgba(234,57,67,0.40); background: rgba(234,57,67,0.06); }
   body.light .chatApply, body.light .suggestB { background: rgba(22,199,132,0.10); border-color: rgba(22,199,132,0.55); }
   body.light .stDot.tested { box-shadow: 0 0 6px rgba(22,199,132,0.5); }
   body.light .cm.user { background: rgba(254,219,41,0.20); border-color: rgba(224,161,0,0.45); }
-  /* keep the boot-log a dark terminal even in light mode */
+  body.light .cm.bot { background: rgba(254,219,41,0.16); border-color: rgba(224,161,0,0.40); }
   body.light .bootLog { background: #0C1117; border-color: rgba(255,255,255,0.08); color: #BDBDBD; }
-  /* softer elevation on white */
   body.light .panel, body.light .stagePanel, body.light .streamLine, body.light .chatDock { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
   body.light .bar { box-shadow: 0 1px 2px rgba(0,0,0,0.07); }
   * { box-sizing: border-box; }
@@ -98,7 +51,6 @@
   #app { height: 100vh; display: flex; flex-direction: column; }
   .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
-  /* ── brand bar (app bar, elevation 1) ── */
   .bar { display: flex; align-items: center; gap: 11px; padding: 11px 22px; border-bottom: 1px solid var(--border); background: var(--bg); box-shadow: 0 1px 2px rgba(0,0,0,0.35); flex-shrink: 0; }
   .bar img.icon { width: 30px; height: 30px; object-fit: contain; border-radius: 8px; background: #1A1A1A; padding: 2px; }
   .bar .logo { font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--text); white-space: nowrap; letter-spacing: -0.01em; }
@@ -114,14 +66,13 @@
   .finalizeBtn:active { transform: scale(0.98); }
   .finalizeBtn:disabled { background: var(--disabled-bg); color: var(--disabled-fg); cursor: not-allowed; }
   .barHint { font-size: 12px; color: var(--dim); font-family: var(--mono); white-space: nowrap; }
-  /* agent identity avatar (top bar) — click to cycle the look */
   .agentAva { width: 32px; height: 32px; border-radius: 50%; padding: 0; border: 1.5px solid var(--border2); background: var(--panel2); cursor: pointer; flex-shrink: 0; overflow: hidden; transition: border-color 0.15s, transform 0.15s; }
   .agentAva img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .agentAva:hover { border-color: var(--accent); transform: scale(1.06); }
   .themeBtn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border2); background: var(--panel2); color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
   .themeBtn:hover { border-color: var(--orange); color: var(--orange); }
 
-  /* ── copilot chat dock ── */
+  /* ── Coach Roostoo chat dock ── */
   .chatDock { margin: 13px 18px 0; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--elev-card); }
   .chatTop { display: flex; align-items: center; gap: 10px; padding: 11px 16px; cursor: pointer; user-select: none; }
   .aiSpark { color: var(--accent); font-size: 14px; line-height: 1; }
@@ -140,17 +91,18 @@
   .cm ul:last-child, .cm ol:last-child { margin-bottom: 0; }
   .cm li { margin: 3px 0; line-height: 1.55; }
   .cm strong { font-weight: 700; color: var(--text); }
-  /* yellow highlighter behind emphasized terms — bot messages only */
-  .cm.bot .hl { background: var(--accent); color: #0C1117; font-weight: 600; padding: 0 3px; border-radius: 3px; }
-  /* user messages: no highlight — render plainly */
-  .cm.user .hl { background: none; color: inherit; font-weight: inherit; padding: 0; }
+  /* bot bubble is yellowish (Roostoo theme); highlight = bold so it's not yellow-on-yellow */
+  .cm.bot .hl { font-weight: 700; }
+  .cm.user .hl { font-weight: inherit; }
   .cm code { font-family: var(--mono); font-size: 12px; background: var(--panel3); padding: 1px 5px; border-radius: 4px; }
-  .cm.bot { align-self: flex-start; background: var(--panel2); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px; }
+  .cm.bot { align-self: flex-start; background: rgba(254,219,41,0.10); border: 1px solid rgba(254,219,41,0.28); color: var(--text); border-bottom-left-radius: 4px; }
   .cm.user { align-self: flex-end; background: rgba(254,219,41,0.12); border: 1px solid rgba(254,219,41,0.34); border-bottom-right-radius: 4px; }
   .cm.typing { color: var(--dim); font-family: var(--mono); letter-spacing: 2px; }
   .cm .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 9px; }
   .chipQ { background: transparent; border: 1px solid var(--border2); color: var(--muted); border-radius: 24px; padding: 5px 12px; font-size: 11px; cursor: pointer; font-family: var(--body); font-weight: 500; transition: all 0.13s; }
   .chipQ:hover { border-color: var(--orange); color: var(--orange); }
+  .chatSuggest { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 0 16px 10px; }
+  .suggLbl { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
   .chatApply { display: inline-flex; margin-top: 9px; background: rgba(0,255,135,0.08); border: 1px dashed rgba(0,255,135,0.45); color: var(--green); border-radius: 24px; padding: 5px 13px; font-size: 11px; font-weight: 600; font-family: var(--body); cursor: pointer; }
   .chatApply:hover { background: rgba(0,255,135,0.16); }
   .chatInRow { display: flex; gap: 9px; padding: 11px 14px 13px; border-top: 1px solid var(--border); }
@@ -160,14 +112,11 @@
   .chatSend { background: var(--accent); color: #0C1117; border: none; border-radius: 24px; padding: 0 20px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: var(--display); text-transform: uppercase; letter-spacing: 0.073em; }
   .chatSend:hover { filter: brightness(1.05); }
 
-  /* ── "?" info tooltips (filled-dot style like exchange info icons) ── */
   .qTip { display: inline-flex; width: 14px; height: 14px; border-radius: 50%; background: var(--panel3); color: var(--muted); font-size: 9px; align-items: center; justify-content: center; cursor: help; margin-left: 5px; font-family: var(--body); font-weight: 700; vertical-align: middle; flex-shrink: 0; }
   .qTip:hover { background: var(--orange); color: #0C1117; }
   #tipPop { position: fixed; z-index: 80; max-width: 276px; background: var(--panel2); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 14px; font-size: 12px; line-height: 1.65; color: var(--muted); box-shadow: var(--elev-sheet); display: none; pointer-events: none; }
   #tipPop b { color: var(--accent); font-weight: 700; }
 
-  /* ── workbench grid ── */
-  /* one combined scroll for all three columns — the bench scrolls as a unit */
   .bench { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0,1fr) 274px; gap: 14px; padding: 14px 18px 16px; overflow-y: auto; align-items: start; scrollbar-width: none; }
   .bench::-webkit-scrollbar { display: none; }
   @media (max-width: 1100px) { .bench { grid-template-columns: 264px minmax(0,1fr); } .railR { display: none; } }
@@ -175,7 +124,6 @@
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 15px; box-shadow: var(--elev-card); }
   .panel h4 { margin: 0 0 12px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
 
-  /* roster */
   .roster { display: flex; flex-direction: column; gap: 5px; }
   .rItem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; background: transparent; width: 100%; font-family: inherit; color: var(--text); text-align: left; transition: all 0.13s; position: relative; }
   .rItem:hover { background: var(--hover); }
@@ -205,7 +153,6 @@
   .addCell:hover { border-color: var(--accent); color: var(--text); }
   .addCell img { width: 22px; height: 22px; border-radius: 50%; }
 
-  /* config */
   .cfgUni { font-size: 12px; color: var(--dim); line-height: 1.55; margin: -4px 0 12px; }
   .cfgUni b { color: var(--accent); font-weight: 700; }
   .cfgLbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin: 14px 0 7px; display: flex; align-items: center; }
@@ -222,7 +169,6 @@
   .ft i { width: 7px; height: 7px; border-radius: 2px; background: var(--dot-idle); flex-shrink: 0; }
   .ft.on i { background: var(--accent); }
 
-  /* ── center stage ── */
   .stage { display: flex; flex-direction: column; min-width: 0; gap: 12px; }
   .streamLine { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 8px 15px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; white-space: nowrap; overflow: hidden; min-height: 38px; box-shadow: var(--elev-card); }
   .streamLine .sDot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: blink 1.1s infinite; flex-shrink: 0; }
@@ -245,7 +191,6 @@
   .spd.on { background: var(--accent); color: #0C1117; border-color: var(--accent); }
   .spd:hover:not(.on) { border-color: var(--orange); color: var(--orange); }
   canvas#cvPrice { width: 100%; height: 420px; display: block; }
-  /* idle CTA — backtests are manual; shown until the user runs one */
   .stageIdle { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: var(--panel); border-radius: 8px; padding: 24px; z-index: 3; }
   .stageIdle .idleInner { text-align: center; max-width: 340px; }
   .idleTitle { font-family: var(--display); font-weight: 700; font-size: 18px; margin-bottom: 7px; letter-spacing: -0.01em; }
@@ -265,7 +210,6 @@
   .probRow .p { font-family: var(--mono); font-size: 10px; font-weight: 600; text-align: right; color: var(--muted); }
   canvas#cvEquity { width: 100%; height: 46px; display: block; }
 
-  /* ── right rail: PPO loop + verdict ── */
   .loopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; position: relative; }
   .loopBox { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 11px; transition: all 0.22s; min-height: 66px; }
   .loopBox.active { border-color: var(--accent); background: rgba(254,219,41,0.07); box-shadow: 0 0 12px rgba(254,219,41,0.16); }
@@ -280,7 +224,6 @@
   .loopCycleLbl { text-align: center; font-size: 10px; color: var(--dim); font-family: var(--mono); margin-top: 8px; letter-spacing: 0.02em; }
   .loopCycleLbl b { color: var(--accent); }
 
-  /* verdict card */
   .vCard { border: 1px solid rgba(0,255,135,0.4); background: rgba(0,255,135,0.05); border-radius: 8px; padding: 14px; display: none; }
   .vCard.bad { border-color: rgba(239,81,68,0.4); background: rgba(239,81,68,0.05); }
   .vCard.show { display: block; animation: vbIn 0.35s cubic-bezier(0.33,1,0.68,1); }
@@ -297,7 +240,6 @@
   .vRerun { margin-top: 11px; width: 100%; padding: 8px; background: transparent; border: 1px solid var(--border2); border-radius: 24px; color: var(--muted); font-size: 11px; font-weight: 600; font-family: var(--display); cursor: pointer; letter-spacing: 0.02em; transition: all 0.13s; }
   .vRerun:hover { border-color: var(--orange); color: var(--orange); }
 
-  /* ── overlays ── */
   .ovl { position: fixed; inset: 0; background: rgba(0,0,0,0.74); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 40; padding: 20px; }
   .ovl.show { display: flex; }
   .sheet { position: relative; width: 560px; max-width: 94vw; max-height: 92vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--border2); border-radius: 8px; padding: 28px 30px; scrollbar-width: none; box-shadow: var(--elev-sheet); }
@@ -341,7 +283,6 @@
   .rsRow.cfgSum { border-color: rgba(254,219,41,0.3); }
   .rsRow.cfgSum .ck { color: var(--accent); font-weight: 700; font-size: 11px; letter-spacing: 0.04em; }
 
-  /* warming up */
   .warmB { text-align: center; padding: 8px 0 4px; }
   .bootLog { text-align: left; font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 15px 17px; margin-bottom: 20px; min-height: 124px; line-height: 1.85; }
   .bootLog .ok { color: var(--green); }
@@ -373,8 +314,6 @@
   .toastB { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--panel2); border: 1px solid var(--border2); color: var(--text); font-size: 13px; padding: 11px 19px; border-radius: 8px; transition: transform 0.3s cubic-bezier(0.33,1,0.68,1); z-index: 60; box-shadow: var(--elev-sheet); }
   .toastB.show { transform: translateX(-50%) translateY(0); }
 
-  /* honor reduced-motion: neutralize decorative blink/pulse/entrance + transitions
-     (the backtest replay itself is core content, driven in JS) */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.001ms !important;
@@ -394,51 +333,4 @@
 
 <script src="./assets/sim-engine.js"></script>
 <script src="./assets/app.js"></script>
-
-
-<div id="give-freely-root-kkkbiiikppgjdiebcabomlbidfodipjg" class="give-freely-root" data-extension-id="kkkbiiikppgjdiebcabomlbidfodipjg" data-extension-name="Substital: Add subtitles to videos and movies" style="display: block;"><template shadowrootmode="open"><style>
-  :host {
-    all: initial;
-  }
-
-  .gf-scroll-remove::-webkit-scrollbar {
-    border-radius-bottom-right: 15px;
-  }
-
-  button {
-    cursor: pointer;
-    transition: transform 0.1s ease;
-  }
-
-  button:active {
-    transform: scale(0.98);
-  }
-
-  .give-freely-close-button:hover {
-    opacity: 0.7;
-  }
-
-  input[type="radio"] {
-    margin-right: 8px;
-  }
-
-  hr {
-    border: none;
-    border-top: 1px solid #e5e5e5;
-    margin: 1em 0;
-  }
-
-  @media (max-width: 600px), (max-height: 480px) {
-    #give-freely-checkout-popup {
-      display: none !important;
-    }
-  }
-
-  dialog::backdrop  {
-    background-color: rgba(180, 180, 180, 0.8);
-  }
-
-  dialog.backdrop-hidden::backdrop  {
-    background-color: transparent;
-  }
-</style><div><div class="gf-app"></div></div></template></div></body></html>
+</body></html>
