@@ -94,6 +94,38 @@
   function fmtPct(x) { return (x >= 0 ? '+' : '') + x.toFixed(1) + '%'; }
   function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
+   // Convert the model's markdown reply into clean HTML. Escapes FIRST (safe),
+  // then formats **bold**, *highlight*, bullet/numbered lists, and paragraphs —
+  // so asterisks no longer show up literally and answers are easy to scan.
+  function formatBotText(raw) {
+    const esc = escapeHtml(String(raw).trim());
+    const lines = esc.split('\n');
+    let html = '', inList = false, listTag = '';
+    const closeList = () => { if (inList) { html += '</' + listTag + '>'; inList = false; } };
+    const inline = (t) => t
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<span class="hl">$1</span>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+    for (let line of lines) {
+      const t = line.trim();
+      if (t === '') { closeList(); continue; }
+      const b = t.match(/^[-•*]\s+(.*)$/);
+      const n = t.match(/^(\d+)\.\s+(.*)$/);
+      if (b) {
+        if (!inList || listTag !== 'ul') { closeList(); html += '<ul>'; inList = true; listTag = 'ul'; }
+        html += '<li>' + inline(b[1]) + '</li>';
+      } else if (n) {
+        if (!inList || listTag !== 'ol') { closeList(); html += '<ol>'; inList = true; listTag = 'ol'; }
+        html += '<li>' + inline(n[2]) + '</li>';
+      } else {
+        closeList();
+        html += '<p>' + inline(t) + '</p>';
+      }
+    }
+    closeList();
+    return html;
+  }
+
   // ── layout ─────────────────────────────────────────────────────────────
   function rootHtml() {
     return barHtml() + chatDockHtml() +
