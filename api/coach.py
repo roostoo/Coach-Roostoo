@@ -4,8 +4,8 @@ Lives at api/coach.py -> serves POST /api/coach automatically.
 Same logic as the old FastAPI server.py: build prompt -> call model ->
 screen output -> return text. Returns the full answer (no streaming).
 
-Env vars (set in the Vercel dashboard, NOT in code):
-  API_KEY  - your Groq API key
+Env vars (set in the Vercel dashboard, and not in code):
+  API_KEY  -  Groq API key
   API_URL  - chat-completions endpoint (optional; defaults to Groq)
   MODEL    - model name (optional; defaults to Groq's gpt-oss-20b)
 """
