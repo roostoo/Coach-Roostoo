@@ -295,24 +295,18 @@
       "- WALLETS/PAYOUTS: non-custodial — Roostoo never holds funds; users sign from their own EVM wallet (MetaMask, Rabby, Coinbase Wallet, WalletConnect) on Base, BNB Chain, or Monad. The connected wallet is both charged for entry and paid out to. Changing it needs email OTP + a 24-hour delay. Roostoo pays payout gas; users pay only the entry fee plus their wallet's confirmation gas.",
     ].join("\n");
   }
-  // Calls the real Coach Roostoo backend (/api/coach), which runs the system
-  // prompt + output guardrail server-side. Returns the plain-text answer.
+  // Calls the Coach Roostoo serverless backend (/api/coach), which runs the
+  // system prompt + output guardrail server-side. Returns the full plain-text
+  // answer (the serverless function does not stream).
   async function llmReply(q) {
     const res = await fetch('/api/coach', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ system: coachSystemPrompt(), message: q })
     });
-    if (!res.ok || !res.body) throw new Error('backend not reachable');
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let acc = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      acc += decoder.decode(value, { stream: true });
-    }
-    return acc.trim();
+    if (!res.ok) throw new Error('backend not reachable');
+    const text = await res.text();
+    return text.trim();
   }
 
   function chatSend(q, forceCanned) {
@@ -445,8 +439,6 @@
     if (!sym) return;
     if (replay) { replay.destroy(); replay = null; }
     const cached = state.results[sym];
-    // Backtests are MANUAL: load / select / config-change never auto-run.
-    // Paint a cached result (fresh or stale) if present, else show the idle CTA.
     if (!force) {
       if (cached) {
         state.status[sym] = 'done';
@@ -458,7 +450,6 @@
       refreshRoster(); refreshRunWrap();
       return;
     }
-    // force === true → explicit run from a "Run backtest" / re-run button.
     const idleEl = $('#stageIdle'); if (idleEl) idleEl.style.display = 'none';
     state.status[sym] = 'stream';
     refreshRoster(); refreshRunWrap();
@@ -568,7 +559,6 @@
     });
   }
 
-  // Idle state — no backtest has been run for this asset yet (manual-run model).
   function paintIdle(sym) {
     lastFrame = null;
     hideVerdict();
@@ -600,8 +590,6 @@
     }
   }
 
-  // Repaint the current frame when the viewport changes (window resize / browser
-  // zoom / pinch) so the canvas charts + trade markers stay aligned to their box.
   function repaintCharts() {
     if (!lastFrame) return;
     const cvP = $('#cvPrice'); if (!cvP) return;
@@ -639,7 +627,6 @@
   }
   function hideVerdict() { const el = $('#vCard'); if (el) el.className = 'vCard'; }
 
-  // ── partial refreshers ─────────────────────────────────────────────────
   function setText(sel, t) { const el = $(sel); if (el) el.textContent = t; }
   function setHtml(sel, h) { const el = $(sel); if (el) el.innerHTML = h; }
   function setHs(id, t, cls) { const el = document.getElementById(id); if (el) { el.textContent = t; el.className = 'v ' + cls; } }
@@ -671,7 +658,6 @@
   }
 
   function onCfgChanged() {
-    // Uniform config: every asset's result goes stale. Re-runs are explicit.
     hideVerdict();
     refreshRoster(); refreshBar(); refreshRunWrap();
     const sym = state.active;
@@ -682,7 +668,6 @@
     }
   }
 
-  // ── tooltips ───────────────────────────────────────────────────────────
   const tipPop = $('#tipPop');
   function showTip(el) {
     const key = el.dataset.tip;
@@ -708,7 +693,6 @@
     if (e.target.closest('.qTip')) hideTip();
   });
 
-  // ── finalize overlay ───────────────────────────────────────────────────
   function suggestedSL() {
     let mx = 0;
     state.roster.forEach(s => { const r = state.results[s]; if (r) mx = Math.max(mx, r.verdict.maxDD); });
@@ -751,7 +735,6 @@
       '</div>';
   }
 
-  // ── warm-up overlay ────────────────────────────────────────────────────
   const BOOT_LINES = [
     ['> packaging agent bundle…', 0],
     ['  ✓ NAME_CFGS — shared PPO policy config attached', 'ok'],
@@ -808,9 +791,7 @@
     const ck = $('#bChk'); if (ck) ck.addEventListener('change', ev => { state.accepted = ev.target.checked; });
   }
 
-  // ── events ─────────────────────────────────────────────────────────────
   document.addEventListener('click', e => {
-    // clicking an overlay backdrop (outside the sheet) closes it → back to the lab
     if (e.target.classList && e.target.classList.contains('ovl')) { e.target.classList.remove('show'); return; }
     const el = e.target.closest('[data-act]');
     if (!el) return;
@@ -956,7 +937,6 @@
     }
   });
 
-  // ── boot ───────────────────────────────────────────────────────────────
   let savedTheme = 'dark';
   try { savedTheme = localStorage.getItem('roostoo-lab-theme') || 'dark'; } catch (e) { /* ignore */ }
   applyTheme(savedTheme);
