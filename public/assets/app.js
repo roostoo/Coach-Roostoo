@@ -137,7 +137,7 @@
   function barHtml() {
     const n = testedCount();
     return '<div class="bar">' +
-      '<img class="icon" src="brand/roostoo-icon.png" alt="">' +
+      '<img class="icon" src="assets/brand/roostoo-icon.png" alt="">' +
       '<span class="logo">Roostoo Labs</span><span class="dot">●</span><span class="tag">Strategy Lab — Build an Agent</span>' +
       '<span class="nameWrap">' +
       '<button class="agentAva" data-act="avatar" title="Click to change your agent\'s look"><img src="' + avatarSrc(state.avatar) + '" alt="agent avatar"></button>' +
