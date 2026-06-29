@@ -11,10 +11,9 @@
   const FEATURES = ['RSI', 'ATR', 'VWAP', 'MACD', 'StochRSI', 'EMA-X', 'Bollinger', 'OBV', 'Hour', 'Weekday', 'Day', 'Month'];
 
   // Branded agent avatars — the identity carried through the build → launch flow.
-  const AGENT_AVATARS = ['agent-orange', 'agent-green', 'agent-blue', 'agent-purple', 'agent-red'];
   function avatarSrc(i) {
     const n = AGENT_AVATARS.length;
-    return 'brand/agents/' + AGENT_AVATARS[((i % n) + n) % n] + '.png';
+    return 'assets/brand/agents/' + AGENT_AVATARS[((i % n) + n) % n] + '.png';
   }
 
   const state = {
@@ -94,6 +93,38 @@
   function fmtPct(x) { return (x >= 0 ? '+' : '') + x.toFixed(1) + '%'; }
   function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
+  // Convert the model's markdown reply into clean HTML. Escapes FIRST (safe),
+  // then formats **bold**, *highlight*, bullet/numbered lists, and paragraphs —
+  // so asterisks no longer show up literally and answers are easy to scan.
+  function formatBotText(raw) {
+    const esc = escapeHtml(String(raw).trim());
+    const lines = esc.split('\n');
+    let html = '', inList = false, listTag = '';
+    const closeList = () => { if (inList) { html += '</' + listTag + '>'; inList = false; } };
+    const inline = (t) => t
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<span class="hl">$1</span>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+    for (let line of lines) {
+      const t = line.trim();
+      if (t === '') { closeList(); continue; }
+      const b = t.match(/^[-•*]\s+(.*)$/);
+      const n = t.match(/^(\d+)\.\s+(.*)$/);
+      if (b) {
+        if (!inList || listTag !== 'ul') { closeList(); html += '<ul>'; inList = true; listTag = 'ul'; }
+        html += '<li>' + inline(b[1]) + '</li>';
+      } else if (n) {
+        if (!inList || listTag !== 'ol') { closeList(); html += '<ol>'; inList = true; listTag = 'ol'; }
+        html += '<li>' + inline(n[2]) + '</li>';
+      } else {
+        closeList();
+        html += '<p>' + inline(t) + '</p>';
+      }
+    }
+    closeList();
+    return html;
+  }
+
   // ── layout ─────────────────────────────────────────────────────────────
   function rootHtml() {
     return barHtml() + chatDockHtml() +
@@ -106,7 +137,7 @@
   function barHtml() {
     const n = testedCount();
     return '<div class="bar">' +
-      '<img class="icon" src="brand/roostoo-icon.png" alt="">' +
+      '<img class="icon" src="assets/brand/roostoo-icon.png" alt="">' +
       '<span class="logo">Roostoo Labs</span><span class="dot">●</span><span class="tag">Strategy Lab — Build an Agent</span>' +
       '<span class="nameWrap">' +
       '<button class="agentAva" data-act="avatar" title="Click to change your agent\'s look"><img src="' + avatarSrc(state.avatar) + '" alt="agent avatar"></button>' +
@@ -117,7 +148,7 @@
       '</div>';
   }
 
-  // ── copilot chat ───────────────────────────────────────────────────────
+  // ── Coach Roostoo chat ─────────────────────────────────────────────────
   const CHIPS = [
     'What does 5-minute frequency mean?',
     'Which reward function should I pick?',
@@ -226,13 +257,15 @@
     return [
       "You are Coach Roostoo, an in-app coach inside Roostoo. Roostoo is a platform where AI agents and human traders compete in time-bounded trading competitions on live market data. The Agent Factory (where the user is now) is a TRAINING/BACKTESTING sandbox — agents are trained and tested here with no real money. Competitions themselves involve REAL money: real USDC/USDT entry fees and real on-chain payouts.",
       "",
+      "IMPORTANT — WHAT THE AGENTS ARE: The trading agents built in the Agent Factory are REINFORCEMENT-LEARNING agents trained with PPO (Proximal Policy Optimization). They learn from market indicators (RSI, MACD, etc.) and a reward function — they are NOT large language models. If a user asks about using an 'LLM', 'language model', 'GPT', or similar AS their trading agent, do not play along: gently correct the premise and explain that Roostoo's trading agents are RL/PPO-based, not LLM-based. (You, Coach Roostoo, are an LLM assistant — but the trading agents you help configure are not.) More generally, if a question contains a false assumption about how Roostoo or the agents work, correct it rather than building on it.",
+      "",
       "The user is configuring a training agent in the Agent Factory. Their CURRENT configuration is:",
       config,
       "",
       "YOUR JOB:",
       "- Explain indicators, reward functions, decision frequency, training steps, strategy, and how the Roostoo platform works (competitions, fees, tiers, XP, wallets, payouts), in plain, beginner-friendly language.",
       "- ALWAYS ground answers in their current configuration above; reference the specific settings they selected. If they ask about something not enabled, explain it and note it isn't currently selected.",
-      "- Be concise: 2-3 short paragraphs maximum. No preamble.",
+      "- Be concise: 2-3 short paragraphs maximum. Use **bold** for key terms and bullet points for lists where it aids readability. Use *single asterisks* to highlight the single most important figure or fact (e.g. a fee or a number).",
       "",
       "STAYING ON TOPIC:",
       "- You are a Roostoo coach, not a general-purpose assistant.",
@@ -263,24 +296,18 @@
       "- WALLETS/PAYOUTS: non-custodial — Roostoo never holds funds; users sign from their own EVM wallet (MetaMask, Rabby, Coinbase Wallet, WalletConnect) on Base, BNB Chain, or Monad. The connected wallet is both charged for entry and paid out to. Changing it needs email OTP + a 24-hour delay. Roostoo pays payout gas; users pay only the entry fee plus their wallet's confirmation gas.",
     ].join("\n");
   }
-  // Calls the real Coach Roostoo backend (/api/coach), which runs the system
-  // prompt + output guardrail server-side. Returns the plain-text answer.
+  // Calls the Coach Roostoo serverless backend (/api/coach), which runs the
+  // system prompt + output guardrail server-side. Returns the full plain-text
+  // answer (the serverless function does not stream).
   async function llmReply(q) {
     const res = await fetch('/api/coach', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ system: coachSystemPrompt(), message: q })
     });
-    if (!res.ok || !res.body) throw new Error('backend not reachable');
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let acc = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      acc += decoder.decode(value, { stream: true });
-    }
-    return acc.trim();
+    if (!res.ok) throw new Error('backend not reachable');
+    const text = await res.text();
+    return text.trim();
   }
 
   function chatSend(q, forceCanned) {
@@ -290,10 +317,10 @@
     state.chatBusy = true;
     renderChat();
     if (forceCanned) {
-      setTimeout(() => pushBot(canned(q)), 380 + Math.random() * 280);
+      setTimeout(() => pushBot(formatBotText(canned(q))), 380 + Math.random() * 280);
     } else {
       // Try the real Coach Roostoo backend; fall back to canned if unreachable.
-      llmReply(q).then(t => pushBot(escapeHtml(t || canned(q)))).catch(() => pushBot(canned(q)));
+      llmReply(q).then(t => pushBot(formatBotText(t || canned(q)))).catch(() => pushBot(formatBotText(canned(q))));
     }
   }
 
@@ -413,8 +440,6 @@
     if (!sym) return;
     if (replay) { replay.destroy(); replay = null; }
     const cached = state.results[sym];
-    // Backtests are MANUAL: load / select / config-change never auto-run.
-    // Paint a cached result (fresh or stale) if present, else show the idle CTA.
     if (!force) {
       if (cached) {
         state.status[sym] = 'done';
@@ -426,7 +451,6 @@
       refreshRoster(); refreshRunWrap();
       return;
     }
-    // force === true → explicit run from a "Run backtest" / re-run button.
     const idleEl = $('#stageIdle'); if (idleEl) idleEl.style.display = 'none';
     state.status[sym] = 'stream';
     refreshRoster(); refreshRunWrap();
@@ -536,7 +560,6 @@
     });
   }
 
-  // Idle state — no backtest has been run for this asset yet (manual-run model).
   function paintIdle(sym) {
     lastFrame = null;
     hideVerdict();
@@ -568,8 +591,6 @@
     }
   }
 
-  // Repaint the current frame when the viewport changes (window resize / browser
-  // zoom / pinch) so the canvas charts + trade markers stay aligned to their box.
   function repaintCharts() {
     if (!lastFrame) return;
     const cvP = $('#cvPrice'); if (!cvP) return;
@@ -607,7 +628,6 @@
   }
   function hideVerdict() { const el = $('#vCard'); if (el) el.className = 'vCard'; }
 
-  // ── partial refreshers ─────────────────────────────────────────────────
   function setText(sel, t) { const el = $(sel); if (el) el.textContent = t; }
   function setHtml(sel, h) { const el = $(sel); if (el) el.innerHTML = h; }
   function setHs(id, t, cls) { const el = document.getElementById(id); if (el) { el.textContent = t; el.className = 'v ' + cls; } }
@@ -639,7 +659,6 @@
   }
 
   function onCfgChanged() {
-    // Uniform config: every asset's result goes stale. Re-runs are explicit.
     hideVerdict();
     refreshRoster(); refreshBar(); refreshRunWrap();
     const sym = state.active;
@@ -650,7 +669,6 @@
     }
   }
 
-  // ── tooltips ───────────────────────────────────────────────────────────
   const tipPop = $('#tipPop');
   function showTip(el) {
     const key = el.dataset.tip;
@@ -676,7 +694,6 @@
     if (e.target.closest('.qTip')) hideTip();
   });
 
-  // ── finalize overlay ───────────────────────────────────────────────────
   function suggestedSL() {
     let mx = 0;
     state.roster.forEach(s => { const r = state.results[s]; if (r) mx = Math.max(mx, r.verdict.maxDD); });
@@ -719,7 +736,6 @@
       '</div>';
   }
 
-  // ── warm-up overlay ────────────────────────────────────────────────────
   const BOOT_LINES = [
     ['> packaging agent bundle…', 0],
     ['  ✓ NAME_CFGS — shared PPO policy config attached', 'ok'],
@@ -776,9 +792,7 @@
     const ck = $('#bChk'); if (ck) ck.addEventListener('change', ev => { state.accepted = ev.target.checked; });
   }
 
-  // ── events ─────────────────────────────────────────────────────────────
   document.addEventListener('click', e => {
-    // clicking an overlay backdrop (outside the sheet) closes it → back to the lab
     if (e.target.classList && e.target.classList.contains('ovl')) { e.target.classList.remove('show'); return; }
     const el = e.target.closest('[data-act]');
     if (!el) return;
@@ -924,7 +938,6 @@
     }
   });
 
-  // ── boot ───────────────────────────────────────────────────────────────
   let savedTheme = 'dark';
   try { savedTheme = localStorage.getItem('roostoo-lab-theme') || 'dark'; } catch (e) { /* ignore */ }
   applyTheme(savedTheme);

@@ -1,64 +1,91 @@
 # Coach Roostoo
 
-A config-aware training coach for the Agent Factory. It explains indicators, reward functions, and risk settings in plain language, grounded in whatever the user has selected — and it answers educationally rather than giving real-money advice.
+An in-app educational coach for the Roostoo Strategy Lab. It helps users understand
+how to build and tune a reinforcement-learning trading agent — explaining indicators,
+reward functions, decision frequency, training steps, and how the Roostoo platform
+works (competitions, fees, tiers, XP, wallets, payouts).
 
-Answers come from Google Gemini. A small Python server holds the API key so the browser never sees it; if the server is unreachable, the UI falls back to built-in sample answers so it never looks broken.
+Coach Roostoo **educates, it does not advise**: it explains concepts and platform
+mechanics, but never tells a user what to do with real money.
 
-HERE is the link to the demo: https://coach-roostoo.onrender.com/
-Model Used: Gemini 2.5 flash
-
-Tutorial to run locally yourself:
-## Running it locally
-
-You need Python 3.10+ installed.
-
-1. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-2. Set your Gemini key (get one free at https://aistudio.google.com/apikey):
-   ```
-   export API_KEY=your_key_here
-   ```
-   On Windows: `set API_KEY=your_key_here`
-3. Start the server:
-   ```
-   uvicorn server:app --host 0.0.0.0 --port 8788
-   ```
-4. Open http://localhost:8788
-
-If the coach shows "(built-in answer)", the key isn't being read — check `API_KEY` is set and restart. You can confirm at http://localhost:8788/api/health, which reports whether the key is loaded.
-
-## Deploying on Render
-
-1. Push this folder to GitHub. Don't commit any key — it goes in Render's settings, not the repo.
-2. On Render: New → Web Service, connect the repo. It reads `render.yaml`, which sets:
-   - Build: `pip install -r requirements.txt`
-   - Start: `uvicorn server:app --host 0.0.0.0 --port $PORT`
-3. Under Environment, add `API_KEY` with your Gemini key.
-4. Deploy. Render gives you a link to share — coworkers just open it, no install.
-
-Render's free tier sleeps when idle, so the first request after a quiet spell takes ~30 seconds to wake. Fine for a demo; a paid tier removes it.
-
-## How it maps to the real app
-
-- `public/index.html` — the coach UI plus the training sandbox. In production this becomes a component in the Agent Factory, reading config from the live app state instead of the demo's controls.
-- `systemPrompt()` (in `index.html`) — the grounding and safety layer: injects the user's selected indicators/reward/risk and enforces educate-don't-advise behavior. This is the reusable core.
-- `server.py` — the backend: holds the key, calls the model, and screens the output (the guardrail). In production this becomes a route on Roostoo's own backend; the model is swappable.
-
-## A few things worth knowing
-
-- The key lives only on the server (your environment locally, or Render's settings online), never in the page.
-- Gemini's free tier has a daily request cap and may use prompts to improve its models — keep it to simulator questions, no real customer or company data.
-- The coach is educational by design. It won't give real-world buy/sell advice; for platform facts (fees, rules, scoring) the intended approach is to point users to the official Roostoo docs rather than answer from memory.
-
-## Files
+## What's in here
 
 ```
 .
-├── server.py          # backend: holds the key, calls the model, screens output
-├── requirements.txt   # Python dependencies
-├── render.yaml        # tells Render how to run it
-└── public/
-    └── index.html     # coach UI + config + training sandbox
+├── api/
+│   └── coach.py          # serverless backend: builds the prompt, calls the model,
+│                         # screens the output, returns the answer
+├── public/
+│   ├── index.html        # the Strategy Lab UI + chat dock
+│   └── assets/
+│       ├── app.js         # frontend logic, system prompt, chat wiring
+│       ├── sim-engine.js  # the backtest replay engine
+│       ├── css2           # font stylesheet
+│       └── *.png          # coin + agent icons
+│   └── brand/
+│       ├── roostoo-icon.png
+│       └── agents/*.png   # agent avatars
+├── vercel.json           # Vercel build + routing config
+└── requirements.txt      # empty — the function uses only the Python standard library
 ```
+
+## How it works
+
+- The **frontend** (`public/`) runs in the browser. When a user asks a question, it
+  builds a grounded system prompt (including the user's current agent config and the
+  Roostoo platform facts) and sends it to the backend.
+- The **backend** (`api/coach.py`) is a Vercel serverless function served at
+  `/api/coach`. It holds the API key, calls the model provider, runs an output
+  guardrail, and returns the answer. The key never reaches the browser.
+
+### Two safety layers
+1. **System prompt** (in `app.js`) — instructs the model to educate, not advise, and
+   to never give real-money buy/sell directives.
+2. **Output guardrail** (in `api/coach.py`) — screens the model's reply and replaces
+   it with a safe redirect if it slips into a real-world financial directive.
+
+## Model provider
+
+The backend targets **Groq** (OpenAI-compatible: a `messages` array in, the answer at
+`choices[0].message.content` out, Bearer auth). Any OpenAI-compatible provider
+(DeepSeek, OpenAI, etc.) works by changing the env vars below — no code change.
+Switching to Gemini *would* require code changes, since its request/response format
+differs.
+
+## Environment variables
+
+Set these in the Vercel dashboard (Project -> Settings -> Environment Variables).
+Never commit them to the repo.
+
+| Variable  | Required | Default                                             | Purpose                   |
+|-----------|----------|-----------------------------------------------------|---------------------------|
+| `API_KEY` | yes      | --                                                  | Your provider API key     |
+| `API_URL` | no       | `https://api.groq.com/openai/v1/chat/completions`   | Chat-completions endpoint |
+| `MODEL`   | no       | `openai/gpt-oss-20b`                                 | Model name to call        |
+
+## Deploying (Vercel)
+
+1. Push this repo to GitHub.
+2. Import it into Vercel (or run `vercel` from the CLI).
+3. Add `API_KEY` under Environment Variables.
+4. Deploy. Vercel serves the static `public/` files and runs `api/coach.py` as a
+   serverless function automatically -- no build step, no dependencies to install.
+
+### Verify it's working
+- Open the site and ask the coach a question (e.g. "how much to enter a competition?").
+- Hit `/api/coach` directly in a browser -- it should return
+  `{"ok": true, "model": "...", "keySet": true}`. If `keySet` is `false`, the
+  `API_KEY` env var isn't set.
+
+### A note on caching
+Browsers cache `app.js` aggressively. After deploying a change, hard-refresh
+(Cmd/Ctrl + Shift + R) or you may keep seeing the old version.
+
+## Notes & limitations
+
+- The coach is **stateless** -- it has no memory across messages or sessions. Each
+  question is answered on its own.
+- Serverless functions cold-start, so the first request after a period of inactivity
+  may take an extra second or two.
+- The Roostoo platform facts live in the system prompt in `app.js`. When platform
+  details change (fees, tiers, etc.), update them there.
