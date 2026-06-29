@@ -8,3 +8,5 @@ services:
     envVars:
       - key: API_KEY
         sync: false   # paste your model API key in the Render dashboard
+      - key: COACH_SERVICE_SECRET
+        sync: false   # must match COACH_SERVICE_SECRET in roostoo-power-api

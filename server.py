@@ -1,14 +1,17 @@
 """
 Coach Roostoo — FastAPI server (Groq / OpenAI-compatible build).
 
-  - POST /api/coach   : build prompt -> call the model -> screen output -> return text
+  - POST /api/coach   : called by the Go backend — validates X-Internal-Token,
+                        builds prompt from history, calls LLM, screens output,
+                        returns JSON { Reply, ModelID }
   - GET  /api/health  : { ok, model, keySet }
   - serves the UI from ./public (index.html) so it's one link
 
 PROVIDER CONFIG (generic env names, currently set up for Groq):
-  API_KEY  - your provider's API key
-  API_URL  - the provider's chat-completions endpoint
-  MODEL    - the model name to call
+  API_KEY              - your provider's API key
+  API_URL              - the provider's chat-completions endpoint
+  MODEL                - the model name to call
+  COACH_SERVICE_SECRET - shared secret validated via X-Internal-Token header
 
 NOTE: this build targets GROQ, which is OpenAI-compatible — it uses a
 "messages" array in the request and choices[0].message.content in the response,
@@ -31,15 +34,26 @@ from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
-PORT = int(os.environ.get("PORT", "8788"))
-KEY = os.environ.get("API_KEY")
+PORT           = int(os.environ.get("PORT", "8788"))
+KEY            = os.environ.get("API_KEY")
+INTERNAL_TOKEN = os.environ.get("COACH_SERVICE_SECRET", "")
 # Groq's OpenAI-compatible chat-completions endpoint.
-API_URL = os.environ.get("API_URL", "https://api.groq.com/openai/v1/chat/completions")
-MODEL = os.environ.get("MODEL", "openai/gpt-oss-20b")
+API_URL        = os.environ.get("API_URL", "https://api.groq.com/openai/v1/chat/completions")
+MODEL          = os.environ.get("MODEL", "openai/gpt-oss-20b")
 
 if not KEY:
     print("\n[Coach Roostoo] No API key set yet.")
     print("Set API_KEY in your environment and restart.\n")
+
+# System prompt — Python owns this; the Go backend does not send one.
+SYSTEM_PROMPT = (
+    "You are Coach Roostoo, an expert trading educator inside the Roostoo "
+    "paper-trading simulator. You help users understand trading concepts, "
+    "strategies, risk management, and how to use the Roostoo platform — but "
+    "you never give real-money financial advice or directives. "
+    "Keep answers clear, concise, and educational, always grounded in the "
+    "Roostoo simulation context."
+)
 
 app = FastAPI()
 
@@ -88,29 +102,42 @@ SAFE_REDIRECT = (
 
 @app.post("/api/coach")
 async def coach(request: Request):
+    # ── Auth: validate shared secret from Go backend ──────────────────────────
+    if INTERNAL_TOKEN:
+        token = request.headers.get("X-Internal-Token", "")
+        if token != INTERNAL_TOKEN:
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
     body = await request.json()
-    system = body.get("system")
-    message = body.get("message")
 
-    if not message:
-        return JSONResponse({"error": "Missing message"}, status_code=400)
+    # ── Parse new Go contract: PascalCase keys ────────────────────────────────
+    # Go sends: { "Messages": [{"Role": "user", "Content": "...", "Ts": ...}],
+    #             "UserContext": {"UserId": 123} }
+    incoming     = body.get("Messages", [])
+    # user_context = body.get("UserContext", {})  # reserved for future use
+
+    if not incoming:
+        return JSONResponse({"error": "Missing Messages"}, status_code=400)
     if not KEY:
-        return JSONResponse(
-            {"error": "Server has no API key configured."}, status_code=500
-        )
+        return JSONResponse({"error": "Server has no API key configured."}, status_code=500)
 
-    # OpenAI-compatible request: a "messages" array (system + user).
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": message})
+    # Convert PascalCase Go message objects → snake_case for the LLM API.
+    messages = [
+        {"role": m["Role"], "content": m["Content"]}
+        for m in incoming
+        if m.get("Role") and m.get("Content")
+    ]
+
+    # Prepend system prompt if the history doesn't already start with one.
+    if not messages or messages[0]["role"] != "system":
+        messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
 
     payload = {
         "model": MODEL,
         "messages": messages,
         "temperature": 0.4,
         "max_tokens": 2000,
-        "stream": False,  # we buffer anyway for the guardrail
+        "stream": False,  # we buffer the full response for the guardrail
     }
 
     try:
@@ -125,10 +152,8 @@ async def coach(request: Request):
             )
 
         if upstream.status_code != 200:
-            print("[coach] Groq error:", upstream.status_code, upstream.text[:300])
-            return PlainTextResponse(
-                "[error contacting model provider]", status_code=502
-            )
+            print("[coach] LLM provider error:", upstream.status_code, upstream.text[:300])
+            return JSONResponse({"error": "error contacting model provider"}, status_code=502)
 
         # OpenAI-style response: answer is at choices[0].message.content.
         data = upstream.json()
@@ -145,11 +170,12 @@ async def coach(request: Request):
             print("[coach][guardrail] original (first 200 chars):", release[:200])
             release = SAFE_REDIRECT
 
-        return PlainTextResponse(release or "(no response)")
+        # Return JSON so Go can parse Reply + ModelID.
+        return JSONResponse({"Reply": release or "(no response)", "ModelID": MODEL})
 
     except Exception as err:  # noqa: BLE001
         print("[coach] error:", str(err))
-        return PlainTextResponse("[server error]", status_code=500)
+        return JSONResponse({"error": "internal server error"}, status_code=500)
 
 
 @app.get("/api/health")
