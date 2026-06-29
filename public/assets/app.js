@@ -11,7 +11,7 @@
   const FEATURES = ['RSI', 'ATR', 'VWAP', 'MACD', 'StochRSI', 'EMA-X', 'Bollinger', 'OBV', 'Hour', 'Weekday', 'Day', 'Month'];
 
   // Branded agent avatars — the identity carried through the build → launch flow.
-  const AGENT_AVATARS = ['agent-orange', 'agent-green', 'agent-blue', 'agent-purple', 'agent-red'];
+  const AGENT_AVATARS = ['agent-orange'];
   function avatarSrc(i) {
     const n = AGENT_AVATARS.length;
     return 'brand/agents/' + AGENT_AVATARS[((i % n) + n) % n] + '.png';
