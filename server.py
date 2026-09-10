@@ -23,6 +23,7 @@ Run locally:
   uvicorn server:app --host 0.0.0.0 --port 8788
 """
 
+import asyncio
 import os
 import re
 
@@ -121,17 +122,36 @@ def _rag_facts(message):
         return ""
 
 
-def build_system_prompt(message="", with_tools=False):
+async def _facts_for(message):
+    """Resolve the platform-fact block off the event loop.
+
+    `_rag_facts` embeds the question and queries Chroma — a synchronous,
+    CPU-bound step. Called directly inside the async request handler it would
+    block the single event loop for its whole duration, so under load requests
+    (and the health check) queue behind each other and the load balancer starts
+    returning 502s. Running it in a worker thread keeps the loop free to accept
+    other requests while the embedding runs. Falls back to the hard-coded tables
+    when RAG returns nothing, exactly as before."""
+    rag_facts = await asyncio.to_thread(_rag_facts, message)
+    return rag_facts or _platform_facts_for(message)
+
+
+def build_system_prompt(message="", with_tools=False, facts=None):
     """Assemble the /api/coach system prompt for one turn. The agent registry and
     the short PLATFORM_RULES are always present; the bulky platform-fact sections
     are attached only when `message` is about them. The behavioral policy
     (envelope, honest-backtest, numbers, tone/refusals) mirrors the compiler so
     both surfaces behave the same. `with_tools` selects the tool discipline (Go
-    tool-calling path) vs the no-actions clause (browser chat, no tools)."""
+    tool-calling path) vs the no-actions clause (browser chat, no tools).
+
+    `facts` may be precomputed by the async caller via `_facts_for` (which runs
+    RAG off the event loop); when omitted they are resolved inline — used at
+    import time and by any synchronous caller."""
     parts = [_SYS_HEADER, _registry_brief(), _ENVELOPE, _PLATFORM_RULES]
     # RAG first (facts retrieved from the cards); if RAG is unavailable, fall
     # back to the hard-coded platform-fact tables so behaviour never regresses.
-    facts = _rag_facts(message) or _platform_facts_for(message)
+    if facts is None:
+        facts = _rag_facts(message) or _platform_facts_for(message)
     if facts:
         parts.append(facts)
     parts += [_BACKTESTING, _CONTEXT_POLICY, _NUMBERS, _FORMATTING, _TONE]
@@ -225,8 +245,10 @@ async def coach(request: Request):
         # optional `history` array carries prior turns for multi-turn memory.
         mode = "text"
         # Attach only the platform facts this message is about (keeps the
-        # common case well under the provider's per-minute token cap).
-        messages = [{"role": "system", "content": build_system_prompt(frontend_message)}]
+        # common case well under the provider's per-minute token cap). RAG runs
+        # in a worker thread so the embedding never blocks the event loop.
+        facts = await _facts_for(frontend_message)
+        messages = [{"role": "system", "content": build_system_prompt(frontend_message, facts=facts)}]
         if body.get("system"):
             messages.append({"role": "system", "content": body["system"]})
         for m in (body.get("history") or [])[-12:]:
@@ -243,7 +265,8 @@ async def coach(request: Request):
         #   tool                    — ToolCallId + ToolName set, content = result
         _last_user = next((m.get("Content") or "" for m in reversed(go_messages)
                            if (m.get("Role") or "").lower() == "user"), "")
-        messages = [{"role": "system", "content": build_system_prompt(_last_user, with_tools=True)}]
+        facts = await _facts_for(_last_user)
+        messages = [{"role": "system", "content": build_system_prompt(_last_user, with_tools=True, facts=facts)}]
         for m in go_messages:
             role = (m.get("Role") or "").lower()
             if not role:
