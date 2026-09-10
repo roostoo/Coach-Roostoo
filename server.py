@@ -175,6 +175,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.on_event("startup")
+async def _warm_rag() -> None:
+    """Preload the embedding model + Chroma index into THIS worker before it
+    serves traffic. Uvicorn runs startup handlers before it accepts requests, so
+    a freshly started (or autoscaled) task only becomes healthy once RAG is warm
+    — avoiding the ~20-30s cold-start latency the first real requests would
+    otherwise pay while each worker loads the model. Best-effort: any failure is
+    swallowed (RAG then falls back to the hard-coded facts, exactly as before)."""
+    try:
+        await asyncio.to_thread(_rag_facts, "warmup")
+    except Exception:
+        pass
+
 # ============================================================================
 # LAYER 3 — OUTPUT GUARDRAIL (provider-agnostic — screens text)
 # ============================================================================

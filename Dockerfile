@@ -18,4 +18,7 @@ COPY . .
 RUN python rag.py
 
 # App Runner injects PORT (default 8080); listen on it. Shell form so ${PORT} expands.
-CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}
+# --workers runs multiple processes so the CPU-bound RAG embedding parallelises
+# across cores (bypassing the per-process GIL). Each worker loads its own copy of
+# the model, so the task's memory must be sized for it (see the ECS task def).
+CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080} --workers 2
