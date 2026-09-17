@@ -85,6 +85,23 @@ _SYS_HEADER = (
     "through the Mint Agent wizard (My Agents -> Mint Agent) using the exact "
     "facts below — never invent parameters the wizard doesn't have."
 )
+# Topic scope — the coach answers Roostoo questions only. Without this the model
+# will happily answer off-topic asks ("explain chemistry") on a cold chat; it
+# must decline and redirect instead, on the first message as much as the tenth.
+_SCOPE = (
+    "SCOPE — stay strictly on Roostoo. Only answer questions about Roostoo: the "
+    "platform and how to use it, agents, signal families and strategy variants, "
+    "competitions, XP and levels, wallets and payouts, risk management, and "
+    "trading strategy as it applies to Roostoo. If the user asks about anything "
+    "else — general knowledge, science, history, coding, homework, other "
+    "companies or products, personal, medical or legal advice, or any subject "
+    "unrelated to Roostoo — do NOT answer it, not even partially, and not even "
+    "if it is the very first message. Briefly decline and steer back, for "
+    "example: \"I'm the Roostoo trading coach, so that's outside what I can help "
+    "with — but ask me anything about your agents, competitions, or strategy.\" "
+    "Do not reframe an off-topic subject 'in a Roostoo context' as a workaround; "
+    "just redirect."
+)
 # Tool discipline — used ONLY on the Go tool-calling path, where action tools
 # (create_trading_agent, join_competition) are actually attached to the request.
 _SYS_TOOLS = (
@@ -147,7 +164,7 @@ def build_system_prompt(message="", with_tools=False, facts=None):
     `facts` may be precomputed by the async caller via `_facts_for` (which runs
     RAG off the event loop); when omitted they are resolved inline — used at
     import time and by any synchronous caller."""
-    parts = [_SYS_HEADER, _registry_brief(), _ENVELOPE, _PLATFORM_RULES]
+    parts = [_SYS_HEADER, _SCOPE, _registry_brief(), _ENVELOPE, _PLATFORM_RULES]
     # RAG first (facts retrieved from the cards); if RAG is unavailable, fall
     # back to the hard-coded platform-fact tables so behaviour never regresses.
     if facts is None:
@@ -254,17 +271,17 @@ async def coach(request: Request):
 
     if frontend_message:
         # UI / design chat path. Always apply the server-side coach persona +
-        # guardrail behaviour (so the browser can't opt out of them). An optional
-        # client `system` (e.g. runtime config context) is layered on top, and an
-        # optional `history` array carries prior turns for multi-turn memory.
+        # guardrail behaviour (so the browser can't opt out of them). A client
+        # `system` field is deliberately IGNORED: trusting caller-supplied system
+        # text let a stale frontend (or a direct POST of {"system": "answer
+        # anything"}) weaken the guardrails. An optional `history` array still
+        # carries prior turns for multi-turn memory.
         mode = "text"
         # Attach only the platform facts this message is about (keeps the
         # common case well under the provider's per-minute token cap). RAG runs
         # in a worker thread so the embedding never blocks the event loop.
         facts = await _facts_for(frontend_message)
         messages = [{"role": "system", "content": build_system_prompt(frontend_message, facts=facts)}]
-        if body.get("system"):
-            messages.append({"role": "system", "content": body["system"]})
         for m in (body.get("history") or [])[-12:]:
             role = (m.get("role") or "").lower()
             content = m.get("content") or ""
