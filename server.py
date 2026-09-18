@@ -133,7 +133,7 @@ def _rag_facts(message):
         return ""
     try:
         import rag
-        chunks = rag.retrieve(message, k=3)
+        chunks = rag.retrieve(message, k=5)
         return ("=== ROOSTOO FACTS ===\n" + chunks) if chunks else ""
     except Exception:
         return ""

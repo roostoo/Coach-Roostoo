@@ -15,12 +15,13 @@ family and variant it learns from; 3) Timing and reward — how often it decides
 long it trains, what it optimises; 4) Backtest and launch — read the results on
 held-out data, then launch.
 
-**1. Asset model.** Pick one or more markets. Today that means major crypto pairs
-against USDT: BTC, ETH, BNB, SOL, XRP and a dozen others. One market makes a
-specialist (cleaner signal, faster training, concentrated risk); several markets
-make a generalist (more diversification, a wider task for the policy to learn).
-Coming soon: tokenized stocks, commodities such as gold and silver, and FX pairs
-are on the roadmap — not available yet.
+**1. Asset model.** Pick one or more markets from Roostoo's full universe — 67
+crypto perps (BTC, ETH, SOL, XRP, BNB and more) and 21 bStocks (tokenized-stock
+perps such as NVDAB, TSLAB, METAB), all USD-quoted and tradable long or short. One
+market makes a specialist (cleaner signal, faster training, concentrated risk);
+several markets make a generalist (more diversification, a wider task for the
+policy to learn). See Tradable instruments for the full list. Commodities such as
+gold and silver, and FX pairs, are on the roadmap — not available yet.
 
 **2. Features: signal family and variant.** This is the agent's eyes. A signal
 family decides which market behaviour the agent learns to exploit. Each family has
