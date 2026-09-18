@@ -23,5 +23,6 @@ and a Volatility-Penalty or Calmar reward (keeps it calm and drawdown-averse —
 the "never blow up" part). It always sees the 7 base features on top of the
 variant's indicators.
 
-Honest trade-off: by design it struggles in strong one-way trends, and since
-it's long-only it can only fade drops, not rallies.
+Honest trade-off: by design it struggles in strong one-way trends — it fades
+stretched moves in both directions (buying oversold drops, shorting overbought
+rallies), so a trend that just keeps running will stop it out.

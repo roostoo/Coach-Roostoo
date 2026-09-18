@@ -5,7 +5,7 @@ Only real v1 parameters appear: coins, signal family, strategy variant (which
 fixes the indicator subset the agent sees), decision frequency, reward, and
 training length. Each user/coach value carries one short plain-language
 reason; a small "fixed by the platform" section lists the things the user
-can't change (PPO, lookback, the always-on base features, long-only).
+can't change (PPO, lookback, the always-on base features, long/short direction).
 No internal reward-shaping math, no bps, no jargon.
 """
 
@@ -67,8 +67,8 @@ def build_gene_card(config, rationale, classification, warnings=None):
     fixed = [
         _row("policy", "Model", "PPO (reinforcement learning)", S.PLATFORM,
              locked_reason="Every Roostoo agent is a PPO policy — not a fixed rule, not an LLM."),
-        _row("direction", "Direction", "long-only", S.PLATFORM,
-             locked_reason="The platform only takes long positions right now — no shorting."),
+        _row("direction", "Direction", "long & short", S.PLATFORM,
+             locked_reason="Every market is a perpetual, so the policy can go long or short; direction is not a user setting."),
         _row("base_features", "Always-on features", ", ".join(S.ALWAYS_ON_FEATURES), S.PLATFORM,
              locked_reason="These %d base features are part of every agent's view, "
                            "on top of the variant's indicators." % len(S.ALWAYS_ON_FEATURES)),

@@ -15,7 +15,7 @@ v1 registry (authoritative, = the Mint Agent wizard):
                     full historical training data, the 7 always-on base
                     features (log-return, volume ratio, hour, weekday, cash
                     ratio, position ratio, unrealized PnL)
-Long-only for now: no shorting on the platform yet.
+Direction: the policy trades both long and short — every market is a perpetual.
 
 Risk management (stop_loss, take_profit, max_trade, min_trade) is a DETERMINISTIC
 SAFETY LAYER above the learned policy, not part of the reward. It bounds the
@@ -34,7 +34,7 @@ POLICY = "PPO"
 ACTION_SPACE = "continuous target position"
 LOOKBACK = 50                      # candles in the observation
 TRAINING_DATA = "full available history per coin"
-LONG_ONLY = True                   # no shorting yet; flip when the platform enables it
+LONG_ONLY = False                  # every market is a perpetual now — agents can go long or short
 
 # The 7 base features every agent always sees, on top of its variant's
 # indicator subset. Not toggleable.

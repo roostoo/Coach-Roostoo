@@ -25,5 +25,6 @@ spiky events). It always sees the 7 base features on top of the variant's
 indicators.
 
 Honest trade-off: the events it lives for are rare, so it can sit quiet for a
-while and its live track record matters more than any single backtest. It's
-long-only — it buys panics and crowded resets, it doesn't short blow-off tops.
+while and its live track record matters more than any single backtest. It works
+both directions — buying panics and crowded resets, and shorting blow-off tops
+and crowded longs.

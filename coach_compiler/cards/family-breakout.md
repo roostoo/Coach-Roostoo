@@ -28,4 +28,5 @@ of the variant's indicators.
 
 Honest trade-off: in a market that just chops sideways it will keep getting
 faked out on small losses while it waits — the wins come from the few moves
-that actually run. Long-only, so it plays upside breakouts.
+that actually run. It plays breakouts either way — long on upside breaks, short
+on breakdowns.

@@ -24,5 +24,5 @@ base features (log-return, volume ratio, hour, weekday, cash ratio, position
 ratio, unrealized PnL).
 
 Honest trade-off: momentum agents underperform in flat, choppy markets — they
-need a real move to work. It's long-only, so it profits from up-moves and
-sits in cash otherwise.
+need a real move to work. It rides trends either way — long into up-moves,
+short into down-moves — and sits flat when there's no clear trend.
